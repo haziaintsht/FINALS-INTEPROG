@@ -199,6 +199,7 @@ private:
     Screening* screening;
     int seatNumbers[MAX_SEATS];
     int seatCount;
+
 public:
     Booking() : id(0), user(nullptr), screening(nullptr), seatCount(0) {}
     Booking(int id_, RegularUser* u, Screening* s, const int seats[], int count) : id(id_), user(u), screening(s), seatCount(count) {
@@ -243,6 +244,7 @@ void Booking::changeBooking(Screening* newScreening, const int newSeats[], int n
 class RegularUser : public User {
 private:
     class CinemaBookingSystem* system;
+
 public:
     RegularUser();
     RegularUser(const RegularUser& other);
@@ -653,7 +655,7 @@ void RegularUser::displayDashboard() {
     string input;
     int choice;
     do {
-        cout << "\n=== USER DASHBOARD ===\n";
+        cout << "\n==== USER DASHBOARD ====\n";
         cout << "1. Browse Movies\n";
         cout << "2. Browse Screenings\n";
         cout << "3. Book Ticket\n";
@@ -675,7 +677,7 @@ void RegularUser::displayDashboard() {
             case 4: modifyBooking(); break;
             case 5: cancelBooking(); break;
             case 6: viewMyBookings(); break;
-            case 7: cout << "Logging out...\n"; return;
+            case 7: cout << "Logging out now...\n"; return;
             default: cout << "Invalid choice.\n"; break;
         }
     } while (true);
@@ -837,7 +839,8 @@ void RegularUser::viewMyBookings() {
 
 class Admin : public User {
 private:
-    CinemaBookingSystem* system;
+CinemaBookingSystem* system;
+
 public:
     Admin() { system = CinemaBookingSystem::getInstance(); }
 
@@ -1106,7 +1109,7 @@ int main() {
     string input;
     int choice;
     while (running) {
-        cout << "===WELCOME TO GROUP 4 CINEMA BOOKING SYSTEM===\n";
+        cout << "====WELCOME TO GROUP 4 CINEMA BOOKING SYSTEM====\n";
         cout << "1. Regular user Log in\n";
         cout << "2. Regular user Sign up\n";
         cout << "3. Admin Log in\n";
