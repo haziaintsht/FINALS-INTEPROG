@@ -744,7 +744,7 @@ void RegularUser::bookTicket() {
 
     try {
         system->addBooking(this, screening, seats, ticketCount);
-        cout << "Booking finished!\n";
+        cout << "Booking finished.\n";
     } catch (InputException& e) {
         cout << "Booking error: " << e.what() << "\n";
     }
