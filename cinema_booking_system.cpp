@@ -284,7 +284,7 @@ private:
     // Change the CinemaBookingSystem constructor to:
 CinemaBookingSystem() : movieCount(0), screeningCount(0), bookingCount(0), userCount(0), currentUser(nullptr) {
     bookingModificationStrategy = new class BookingModificationStrategy(this);
-    strncpy(adminUsername, "admin@admin.com", 19); adminUsername[19] = '\0';
+    strncpy(adminUsername, "ADMIN", 19); adminUsername[19] = '\0';
     strncpy(adminPassword, "ADMIN123", 19); adminPassword[19] = '\0';
     
     loadUsersFromFile();  // Add this line
