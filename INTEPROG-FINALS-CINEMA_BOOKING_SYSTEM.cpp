@@ -1,18 +1,26 @@
-#include <iostream>
+#include <iostream>  
 #include <iomanip>
 #include <cstring>
 #include <cctype>
 #include <stdexcept>
 #include <string>
+#include <fstream>
 
 using namespace std;
 
+bool isNumber(const string &s) {
+    if (s.empty()) return false;
+    for (size_t i=0; i < s.length(); i++) {
+        if (!isdigit(s[i])) return false;
+    }
+    return true;
+}
 
-const int MAX_MOVIES = 100;
-const int MAX_SCREENINGS = 100;
-const int MAX_BOOKINGS = 200;
-const int MAX_USERS = 50;
-const int MAX_SEATS = 50;
+const int MAX_MOVIES = 10;
+const int MAX_SCREENINGS = 50;
+const int MAX_BOOKINGS = 60;
+const int MAX_USERS = 20;
+const int MAX_SEATS = 30;
 
 bool running = true;
 
@@ -24,14 +32,6 @@ class Booking;
 class Screening;
 class Movie;
 
-
-bool isNumber(const string &s) {
-    if (s.empty()) return false;
-    for (size_t i=0; i < s.length(); i++) {
-        if (!isdigit(s[i])) return false; // taga tingin kung number ang nainput
-    }
-    return true;
-}
 
 string toUpperStr(const string &s) {
     string result = s;
@@ -52,7 +52,7 @@ class InputException : public exception {
 public:
     InputException(const string &msg) : message(msg) {}
     const char* what() const noexcept override {
-        return message.c_str(); // taga return to ng error message
+        return message.c_str();
     }
 };
 
@@ -101,9 +101,9 @@ public:
         cout << setw(4) << id << " | "
              << setw(20) << left << name
              << setw(10) << genre
-             << setw(8) << duration
-             << fixed << setprecision(2)
-             << setw(8) << cost
+ << setw(8) << duration
+<< fixed << setprecision(2)
+<< setw(8) << cost
              << "\n";
     }
 };
@@ -167,7 +167,7 @@ public:
 };
 
 
-class User { // base class para sa lahat ng users
+class User {
 protected:
     char username[20];
     char password[20];
@@ -177,6 +177,7 @@ public:
     virtual void displayDashboard() = 0;
     virtual void login() = 0;
     virtual void signup() = 0;
+    const char* getPassword() const { return password; }
     const char* getUsername() const { return username; }
     bool checkPassword(const char* pass) const {
         return strcmp(password, pass) == 0;
@@ -260,28 +261,57 @@ public:
     void viewMyBookings();
 };
 
-// CinemaBookingSystem Singleton 
+// CinemaBookingSystem Singleton
 class CinemaBookingSystem {
 private:
-    Movie movies[MAX_MOVIES]; // array ng movies
+    Movie movies[MAX_MOVIES];
     int movieCount;
-    Screening screenings[MAX_SCREENINGS]; // array ng screenings
+    Screening screenings[MAX_SCREENINGS];
     int screeningCount;
-    Booking bookings[MAX_BOOKINGS]; // array ng bookings
+    Booking bookings[MAX_BOOKINGS];
     int bookingCount;
-    RegularUser* users[MAX_USERS]; 
+    RegularUser* users[MAX_USERS];
     int userCount;
     User* currentUser;
-    static CinemaBookingSystem* instance; // are ay para sa static instance para sa singleton
+    static CinemaBookingSystem* instance;
     IBookingModificationStrategy* bookingModificationStrategy;
 
     char adminUsername[20];
     char adminPassword[20];
 
-    CinemaBookingSystem() : movieCount(0), screeningCount(0), bookingCount(0), userCount(0), currentUser(nullptr) {
-        bookingModificationStrategy = new class BookingModificationStrategy(this);
-        strncpy(adminUsername, "ADMIN", 19); adminUsername[19] = '\0';
-        strncpy(adminPassword, "ADMIN123", 19); adminPassword[19] = '\0';
+    // Change the CinemaBookingSystem constructor to:
+CinemaBookingSystem() : movieCount(0), screeningCount(0), bookingCount(0), userCount(0), currentUser(nullptr) {
+    bookingModificationStrategy = new class BookingModificationStrategy(this);
+    strncpy(adminUsername, "ADMIN", 19); adminUsername[19] = '\0';
+    strncpy(adminPassword, "ADMIN123", 19); adminPassword[19] = '\0';
+    
+    loadUsersFromFile();  // Add this line
+}
+    
+    // File load/save helpers
+    void loadUsersFromFile() {
+        ifstream inFile("users.txt");
+        if (inFile.is_open()) {
+            string username, password;
+            while (inFile >> username >> password) {
+                if (userCount >= MAX_USERS) break;
+                RegularUser* user = new RegularUser();
+                user->setUsername(username.c_str());
+                user->setPassword(password.c_str());
+                users[userCount++] = user;
+            }
+            inFile.close();
+        }
+    }
+
+    void saveUsersToFile() {
+        ofstream outFile("users.txt");
+        if (outFile.is_open()) {
+            for (int i = 0; i < userCount; i++) {
+                outFile << users[i]->getUsername() << " " << users[i]->getPassword() << endl;
+            }
+            outFile.close();
+        }
     }
 
 public:
@@ -311,6 +341,9 @@ public:
         strncpy(adminPassword, pass, 19); adminPassword[19] = '\0';
     }
 
+     void saveUsersToFilePublic() {
+        saveUsersToFile();
+    }
     void addMovie(const char* name, const char* genre, int duration, double cost) {
         if (movieCount >= MAX_MOVIES) throw InputException("Movie limit reached.");
         int newId = movieCount + 1;
@@ -427,6 +460,7 @@ public:
     void addUser(RegularUser* user) {
         if (userCount >= MAX_USERS) throw InputException("User limit reached.");
         users[userCount++] = user;
+        saveUsersToFile(); 
     }
 
     RegularUser* findUserByUsername(const char* username) const {
@@ -508,7 +542,7 @@ public:
         cout << "--- Revenue Report ---\n";
         double totalRevenue = 0.0;
         for (int i = 0; i < movieCount; i++) {
-            double movieRevenue = 0.0; // taga compute ng revenue per movie
+            double movieRevenue = 0.0;
             for (int j = 0; j < bookingCount; j++) {
                 if (bookings[j].getScreening()->getMovie()->getId() == movies[i].getId()) {
                     movieRevenue += bookings[j].getSeatCount() * movies[i].getCost();
@@ -680,7 +714,7 @@ void RegularUser::displayDashboard() {
             case 7: cout << "Logging out now...\n"; return;
             default: cout << "Invalid choice.\n"; break;
         }
-    } while (true);
+    } while (running);
 }
 
 void RegularUser::bookTicket() {
@@ -822,31 +856,52 @@ void RegularUser::cancelBooking() {
 }
 
 void RegularUser::viewMyBookings() {
-    cout << "Your bookings:\n";
     Booking* allBookings = system->getBookings();
     bool haveBookings = false;
+
+    cout << "+------------+----------------------+---------------+---------+-------+\n";
+    cout << "| Movie      | Date & Time          | Hall     | Seats     | Count |\n";
+    cout << "+------------+----------------------+----------+-----------+-------+\n";
+
     for (int i = 0; i < system->getBookingCount(); i++) {
         if (allBookings[i].getUser() == this) {
-            allBookings[i].display();
+            Screening* s = allBookings[i].getScreening();
+            const int* seats = allBookings[i].getSeats();
+            cout << "| " << setw(10) << left << s->getMovie()->getName()
+                 << "| " << setw(20) << left << s->getDateTime()
+                 << "| " << setw(8) << left << s->getCinemaHall()
+                 << "| ";
+            for (int j = 0; j < allBookings[i].getSeatCount(); j++) {
+                cout << seats[j];
+                if (j < allBookings[i].getSeatCount() - 1) cout << ",";
+            }
+            cout << setw(11 - allBookings[i].getSeatCount() * 2) << " ";
+            cout << "| " << setw(5) << allBookings[i].getSeatCount() << " |\n";
             haveBookings = true;
         }
     }
+
+    cout << "+------------+----------------------+----------+-----------+-------+\n";
     if (!haveBookings) {
         cout << "No bookings found.\n";
     }
 }
 
 
+
 class Admin : public User {
 private:
 CinemaBookingSystem* system;
-
+bool loggedIn; 
 public:
-    Admin() { system = CinemaBookingSystem::getInstance(); }
-
+    Admin() { system = CinemaBookingSystem::getInstance();
+    loggedIn = false;
+}
     void login() override;
     void signup() override {}
     void displayDashboard() override;
+    void logout();
+    bool isLoggedIn() const { return loggedIn; }
 
 private:
     void addMovie();
@@ -868,14 +923,17 @@ void Admin::login() {
         cout << "Invalid admin credentials.\n";
         return;
     }
+    loggedIn = true;
     cout << "Successfully logged in as admin.\n";
     displayDashboard();
+
+   
 }
 
 void Admin::displayDashboard() {
     string input;
     int choice;
-    do {
+    while (loggedIn) {
         cout << "\n=== ADMIN DASHBOARD ===\n";
         cout << "1. Add Movie\n";
         cout << "2. Edit Movie\n";
@@ -889,11 +947,14 @@ void Admin::displayDashboard() {
         cout << "10. Logout\n";
         cout << "Enter your choice: ";
         getline(cin, input);
-        if (input.length() != 1 || !isdigit(input[0])) {
+        
+        // Modified validation to handle multi-digit numbers
+        if (!isNumber(input)) {
             cout << "Invalid choice.\n";
             continue;
         }
-        choice = input[0] - '0';
+        choice = stoi(input);
+        
         switch (choice) {
             case 1: addMovie(); break;
             case 2: editMovie(); break;
@@ -904,23 +965,38 @@ void Admin::displayDashboard() {
             case 7: system->displayAllBookings(); break;
             case 8: system->generateMovieReport(); break;
             case 9: system->generateRevenueReport(); break;
-            case 10:
-                cout << "Logging out...\n";
+            case 10: 
+                logout();
                 return;
             default:
                 cout << "Invalid choice.\n";
         }
-    } while (true);
+    }
 }
 
 void Admin::addMovie() {
-    char name[100], genre[20];// fixed na size para sa pangalan at genre
+    char name[50], genre[20];
     int duration;
     double cost;
     cout << "Enter movie name: ";
-    cin.getline(name, 100);
-    cout << "Enter genre: ";
-    cin.getline(genre, 20);
+    cin.getline(name, 50);
+cout << "Choose genre:\n";
+cout << "1. Action\n";
+cout << "2. Comedy\n";
+cout << "3. Drama\n";
+cout << "4. Horror\n";
+cout << "5. Sci-Fi\n";
+cout << "6. Romance\n";
+string genreChoice;
+getline(cin, genreChoice);
+if (genreChoice == "1") strcpy(genre, "Action");
+else if (genreChoice == "2") strcpy(genre, "Comedy");
+else if (genreChoice == "3") strcpy(genre, "Drama");
+else if (genreChoice == "4") strcpy(genre, "Horror");
+else if (genreChoice == "5") strcpy(genre, "Sci-Fi");
+else if (genreChoice == "6") strcpy(genre, "Romance");
+else strcpy(genre, "Unknown");
+
     cout << "Enter duration (minutes): ";
     string input;
     getline(cin, input);
@@ -960,13 +1036,28 @@ void Admin::editMovie() {
         cout << "Movie not found.\n";
         return;
     }
-    char name[100], genre[20];
+    char name[50], genre[20];
     int duration;
     double cost;
     cout << "Enter new name: ";
-    cin.getline(name, 100);
-    cout << "Enter new genre: ";
-    cin.getline(genre, 20);
+    cin.getline(name, 50);
+cout << "Enter New genre:\n";
+cout << "1. Action\n";
+cout << "2. Comedy\n";
+cout << "3. Drama\n";
+cout << "4. Horror\n";
+cout << "5. Sci-Fi\n";
+cout << "6. Romance\n";
+string genreChoice;
+getline(cin, genreChoice);
+if (genreChoice == "1") strcpy(genre, "Action");
+else if (genreChoice == "2") strcpy(genre, "Comedy");
+else if (genreChoice == "3") strcpy(genre, "Drama");
+else if (genreChoice == "4") strcpy(genre, "Horror");
+else if (genreChoice == "5") strcpy(genre, "Sci-Fi");
+else if (genreChoice == "6") strcpy(genre, "Romance");
+else strcpy(genre, "Unknown");
+
     cout << "Enter new duration (minutes): ";
     getline(cin, input);
     while (!isNumber(input)) {
@@ -1102,6 +1193,13 @@ void Admin::deleteScreening() {
         cout << "Error: " << e.what() << "\n";
     }
 }
+void Admin::logout() {
+    loggedIn = false;
+    cout << "Logging out...\n";
+
+}
+    
+ 
 
 
 int main() {
@@ -1131,6 +1229,7 @@ int main() {
             } else if (choice == 3) {
                 Admin admin;
                 admin.login();
+                // After logout, it will automatically return here
             } else if (choice == 4) {
                 running = false;
             } else {
@@ -1142,6 +1241,4 @@ int main() {
     }
     delete CinemaBookingSystem::getInstance(); 
     return 0;
-}
-
-
+} 
