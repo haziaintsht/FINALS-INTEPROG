@@ -8,11 +8,11 @@
 using namespace std;
 
 
-const int MAX_MOVIES = 50;
+const int MAX_MOVIES = 100;
 const int MAX_SCREENINGS = 100;
 const int MAX_BOOKINGS = 200;
 const int MAX_USERS = 50;
-const int MAX_SEATS = 30;
+const int MAX_SEATS = 50;
 
 bool running = true;
 
@@ -28,7 +28,7 @@ class Movie;
 bool isNumber(const string &s) {
     if (s.empty()) return false;
     for (size_t i=0; i < s.length(); i++) {
-        if (!isdigit(s[i])) return false;
+        if (!isdigit(s[i])) return false; // taga tingin kung number ang nainput
     }
     return true;
 }
@@ -52,7 +52,7 @@ class InputException : public exception {
 public:
     InputException(const string &msg) : message(msg) {}
     const char* what() const noexcept override {
-        return message.c_str();
+        return message.c_str(); // taga return to ng error message
     }
 };
 
@@ -167,7 +167,7 @@ public:
 };
 
 
-class User {
+class User { // base class para sa lahat ng users
 protected:
     char username[20];
     char password[20];
@@ -260,19 +260,19 @@ public:
     void viewMyBookings();
 };
 
-// CinemaBookingSystem Singleton
+// CinemaBookingSystem Singleton 
 class CinemaBookingSystem {
 private:
-    Movie movies[MAX_MOVIES];
+    Movie movies[MAX_MOVIES]; // array ng movies
     int movieCount;
-    Screening screenings[MAX_SCREENINGS];
+    Screening screenings[MAX_SCREENINGS]; // array ng screenings
     int screeningCount;
-    Booking bookings[MAX_BOOKINGS];
+    Booking bookings[MAX_BOOKINGS]; // array ng bookings
     int bookingCount;
-    RegularUser* users[MAX_USERS];
+    RegularUser* users[MAX_USERS]; 
     int userCount;
     User* currentUser;
-    static CinemaBookingSystem* instance;
+    static CinemaBookingSystem* instance; // are ay para sa static instance para sa singleton
     IBookingModificationStrategy* bookingModificationStrategy;
 
     char adminUsername[20];
@@ -508,7 +508,7 @@ public:
         cout << "--- Revenue Report ---\n";
         double totalRevenue = 0.0;
         for (int i = 0; i < movieCount; i++) {
-            double movieRevenue = 0.0;
+            double movieRevenue = 0.0; // taga compute ng revenue per movie
             for (int j = 0; j < bookingCount; j++) {
                 if (bookings[j].getScreening()->getMovie()->getId() == movies[i].getId()) {
                     movieRevenue += bookings[j].getSeatCount() * movies[i].getCost();
@@ -914,11 +914,11 @@ void Admin::displayDashboard() {
 }
 
 void Admin::addMovie() {
-    char name[50], genre[20];
+    char name[100], genre[20];// fixed na size para sa pangalan at genre
     int duration;
     double cost;
     cout << "Enter movie name: ";
-    cin.getline(name, 50);
+    cin.getline(name, 100);
     cout << "Enter genre: ";
     cin.getline(genre, 20);
     cout << "Enter duration (minutes): ";
@@ -960,11 +960,11 @@ void Admin::editMovie() {
         cout << "Movie not found.\n";
         return;
     }
-    char name[50], genre[20];
+    char name[100], genre[20];
     int duration;
     double cost;
     cout << "Enter new name: ";
-    cin.getline(name, 50);
+    cin.getline(name, 100);
     cout << "Enter new genre: ";
     cin.getline(genre, 20);
     cout << "Enter new duration (minutes): ";
