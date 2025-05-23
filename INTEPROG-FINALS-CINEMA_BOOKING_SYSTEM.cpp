@@ -5,6 +5,9 @@
 #include <stdexcept>
 #include <string>
 #include <fstream>
+#include <sstream>
+#include <regex>
+#include <ctime>
 
 using namespace std;
 
@@ -31,6 +34,52 @@ class Admin;
 class Booking;
 class Screening;
 class Movie;
+
+string buildScreeningDateTime(const string& date, int hour, int minute, int durationMinutes) {
+    int year, month, day;
+    sscanf(date.c_str(), "%d-%d-%d", &year, &month, &day);
+
+    struct tm startTime = {};
+    startTime.tm_year = year - 1900;
+    startTime.tm_mon = month - 1;
+    startTime.tm_mday = day;
+    startTime.tm_hour = hour;
+    startTime.tm_min = minute;
+
+    time_t startEpoch = mktime(&startTime);
+    time_t endEpoch = startEpoch + durationMinutes * 60;
+
+    struct tm* endTime = localtime(&endEpoch);
+
+    char startBuf[20], endBuf[20];
+    strftime(startBuf, sizeof(startBuf), "%Y-%m-%d %H:%M", &startTime);
+    strftime(endBuf, sizeof(endBuf), "%H:%M", endTime);
+
+    return string(startBuf) + " - " + string(endBuf);
+}
+
+string buildScreeningDateTime(const string& date, int durationMinutes) {
+    int year, month, day;
+    sscanf(date.c_str(), "%d-%d-%d", &year, &month, &day);
+
+    struct tm startTime = {};
+    startTime.tm_year = year - 1900;
+    startTime.tm_mon = month - 1;
+    startTime.tm_mday = day;
+    startTime.tm_hour = 12;  // Fixed 12:00 noon
+    startTime.tm_min = 0;
+
+    time_t startEpoch = mktime(&startTime);
+    time_t endEpoch = startEpoch + durationMinutes * 60;
+
+    struct tm* endTime = localtime(&endEpoch);
+
+    char startBuf[6], endBuf[6];
+    strftime(startBuf, sizeof(startBuf), "%H:%M", &startTime);
+    strftime(endBuf, sizeof(endBuf), "%H:%M", endTime);
+
+    return date + " " + string(startBuf) + " - " + string(endBuf);
+}
 
 
 string toUpperStr(const string &s) {
@@ -400,13 +449,20 @@ public:
         return nullptr;
     }
 
-    void addScreening(int movieId, const char* datetime, const char* hall) {
-        if (screeningCount >= MAX_SCREENINGS) throw InputException("Screening limit reached.");
-        Movie* m = findMovieById(movieId);
-        if (!m) throw InputException("Movie not found for screening.");
-        int newId = screeningCount + 1;
-        screenings[screeningCount++] = Screening(newId, m, datetime, hall);
+void addScreening(int movieId, const char* datetime, const char* hall) {
+    if (screeningCount >= MAX_SCREENINGS) throw InputException("Screening limit reached.");
+    Movie* m = findMovieById(movieId);
+    if (!m) throw InputException("Movie not found for screening.");
+    
+    // Ensure datetime is formatted correctly
+    if (strlen(datetime) < 16) {
+        throw InputException("Invalid datetime format.");
     }
+
+    int newId = screeningCount + 1;
+    screenings[screeningCount++] = Screening(newId, m, datetime, hall);
+}
+
 
     void editScreening(int id, int movieId, const char* datetime, const char* hall) {
         Screening* s = findScreeningById(id);
@@ -440,15 +496,33 @@ public:
         screeningCount--;
     }
 
-    void displayScreenings() const {
-        cout << "+----+----------------------+---------------+----------+----------------+\n";
-        cout << "| ID | Movie Name           | Date & Time   | Hall     | Seat Capacity  |\n";
-        cout << "+----+----------------------+---------------+----------+----------------+\n";
-        for (int i = 0; i < screeningCount; i++) {
-            screenings[i].display();
+void displayScreenings() const {
+    cout << "+----+----------------------+-----------------------------+-----------+------------------------+\n";
+    cout << "| ID | Movie Name           | Date & Time                 | Hall      | Seat Capacity  |\n";
+    cout << "+----+----------------------+-----------------------------+-----------+------------------------+\n";
+    for (int i = 0; i < screeningCount; i++) {
+        string dateTimeStr(screenings[i].getDateTime());
+
+        // Extract start and end times
+        string startTime, endTime;
+        size_t dashPos = dateTimeStr.find(" - ");
+        if (dashPos != string::npos) {
+            startTime = dateTimeStr.substr(0, dashPos); // Get the start time
+            endTime = dateTimeStr.substr(dashPos + 3); // Get the end time (after " - ")
+        } else {
+            startTime = "Invalid Date"; // Fallback for invalid date
+            endTime = "Invalid Time"; // Fallback for invalid time
         }
-        cout << "+----+----------------------+---------------+----------+----------------+\n";
+
+        // Displaying the screening information
+        cout << "|" << setw(4) << screenings[i].getId() << " "
+             << "| " << setw(20) << left << screenings[i].getMovie()->getName()
+             << "| " << setw(19) << left << startTime + " - " + endTime // Displaying only the relevant time range
+             << "| " << setw(5) << "Cinema Hall: " <<screenings[i].getCinemaHall()
+             << "| " << setw(15) << "Seats: " << screenings[i].getSeatCapacity() << " |\n";
     }
+    cout << "+----+----------------------+-----------------------------+-----------+------------------------+\n";
+}
 
     Screening* findScreeningById(int id) const {
         for (int i = 0; i < screeningCount; i++) {
@@ -759,22 +833,40 @@ void RegularUser::bookTicket() {
     }
 
     int seats[MAX_SEATS];
-    for (int i = 0; i < ticketCount; i++) {
-        cout << "Enter seat number " << (i + 1) << ": ";
-        getline(cin, input);
-        if (!isNumber(input)) {
-            cout << "Invalid seat.\n";
-            i--;
-            continue;
-        }
-        int seatNum = stoi(input);
-        if (!screening->isSeatAvailable(seatNum)) {
-            cout << "Seat not available.\n";
-            i--;
-            continue;
-        }
-        seats[i] = seatNum;
+for (int i = 0; i < ticketCount; i++) {
+    cout << "Enter seat number " << (i + 1) << ": ";
+    getline(cin, input);
+    if (!isNumber(input)) {
+        cout << "Invalid seat.\n";
+        i--;
+        continue;
     }
+    int seatNum = stoi(input);
+
+    // Check for duplicates in this user's current selection
+    bool duplicate = false;
+    for (int j = 0; j < i; j++) {
+        if (seats[j] == seatNum) {
+            duplicate = true;
+            break;
+        }
+    }
+
+    if (duplicate) {
+        cout << "You've already selected that seat. Please pick a different one.\n";
+        i--;
+        continue;
+    }
+
+    if (!screening->isSeatAvailable(seatNum)) {
+        cout << "Seat already taken. Please choose another.\n";
+        i--;
+        continue;
+    }
+
+    seats[i] = seatNum;
+}
+
 
     try {
         system->addBooking(this, screening, seats, ticketCount);
@@ -1117,18 +1209,57 @@ void Admin::addScreening() {
         return;
     }
     int movieId = stoi(input);
-    char datetime[25];
-    char hall[10];
-    cout << "Enter date and time (YYYY-MM-DD_HH:MM): ";
-    cin.getline(datetime, 25);
-    cout << "Enter cinema hall: ";
-    cin.getline(hall, 10);
-    try {
-        system->addScreening(movieId, datetime, hall);
-        cout << "Screening added.\n";
-    } catch (InputException& e) {
-        cout << "Error: " << e.what() << "\n";
+char hall[10];
+char datetime[50];
+cout << "Enter screening date (YYYY-MM-DD): ";
+getline(cin, input);
+while (!regex_match(input, regex("^\\d{4}-\\d{2}-\\d{2}$"))) {
+    cout << "Invalid format. Please enter date as YYYY-MM-DD: ";
+    getline(cin, input);
+}
+string date = input;
+
+// Start hour
+cout << "Enter start hour (0-23): ";
+getline(cin, input);
+while (!regex_match(input, regex("^\\d{1,2}$")) || stoi(input) < 0 || stoi(input) > 23) {
+    cout << "Invalid hour. Please enter a number between 0 and 23: ";
+    getline(cin, input);
+}
+int hour = stoi(input);
+
+// Start minute (optional)
+cout << "Enter start minutes (0-59) [optional]: ";
+getline(cin, input);
+int minute = 0;
+if (!input.empty()) {
+    while (!regex_match(input, regex("^\\d{1,2}$")) || stoi(input) < 0 || stoi(input) > 59) {
+        cout << "Invalid minutes. Please enter 0–59 or leave blank: ";
+        getline(cin, input);
     }
+    if (!input.empty()) minute = stoi(input);
+}
+
+// Get movie to retrieve duration
+Movie* movie = system->findMovieById(movieId);
+if (!movie) {
+    cout << "Movie not found.\n";
+    return;
+}
+string fullDateTime = buildScreeningDateTime(date, hour, minute, movie->getDuration());
+strncpy(datetime, fullDateTime.c_str(), sizeof(datetime)-1);
+datetime[sizeof(datetime)-1] = '\0';
+
+cout << "Enter cinema hall: ";
+cin.getline(hall, 10);
+
+try {
+    system->addScreening(movieId, datetime, hall);
+    cout << "Screening added.\n";
+} catch (InputException& e) {
+    cout << "Error: " << e.what() << "\n";
+}
+
 }
 
 void Admin::editScreening() {
@@ -1154,18 +1285,57 @@ void Admin::editScreening() {
         return;
     }
     int movieId = stoi(input);
-    char datetime[25];
     char hall[10];
-    cout << "Enter new date and time: ";
-    cin.getline(datetime, 25);
-    cout << "Enter new cinema hall: ";
-    cin.getline(hall, 10);
-    try {
-        system->editScreening(screeningId, movieId, datetime, hall);
-        cout << "Screening edited.\n";
-    } catch (InputException& e) {
-        cout << "Error: " << e.what() << "\n";
+char datetime[50];
+cout << "Enter screening date (YYYY-MM-DD): ";
+getline(cin, input);
+while (!regex_match(input, regex("^\\d{4}-\\d{2}-\\d{2}$"))) {
+    cout << "Invalid format. Please enter date as YYYY-MM-DD: ";
+    getline(cin, input);
+}
+string date = input;
+
+// Start hour
+cout << "Enter start hour (0-23): ";
+getline(cin, input);
+while (!regex_match(input, regex("^\\d{1,2}$")) || stoi(input) < 0 || stoi(input) > 23) {
+    cout << "Invalid hour. Please enter a number between 0 and 23: ";
+    getline(cin, input);
+}
+int hour = stoi(input);
+
+// Start minute (optional)
+cout << "Enter start minutes (0-59) [optional]: ";
+getline(cin, input);
+int minute = 0;
+if (!input.empty()) {
+    while (!regex_match(input, regex("^\\d{1,2}$")) || stoi(input) < 0 || stoi(input) > 59) {
+        cout << "Invalid minutes. Please enter 0–59 or leave blank: ";
+        getline(cin, input);
     }
+    if (!input.empty()) minute = stoi(input);
+}
+
+// Get movie to retrieve duration
+Movie* movie = system->findMovieById(movieId);
+if (!movie) {
+    cout << "Movie not found.\n";
+    return;
+}
+string fullDateTime = buildScreeningDateTime(date, hour, minute, movie->getDuration());
+strncpy(datetime, fullDateTime.c_str(), sizeof(datetime)-1);
+datetime[sizeof(datetime)-1] = '\0';
+
+cout << "Enter cinema hall: ";
+cin.getline(hall, 10);
+
+try {
+    system->addScreening(movieId, datetime, hall);
+    cout << "Screening added.\n";
+} catch (InputException& e) {
+    cout << "Error: " << e.what() << "\n";
+}
+
 }
 
 void Admin::deleteScreening() {
@@ -1241,4 +1411,4 @@ int main() {
     }
     delete CinemaBookingSystem::getInstance(); 
     return 0;
-} 
+}
